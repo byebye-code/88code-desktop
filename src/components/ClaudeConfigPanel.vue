@@ -95,9 +95,9 @@
             </label>
             <input
               v-model="vscodeConfig.apiKey"
-              type="password"
+              type="text"
               class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200"
-              placeholder="输入您的 API 密钥"
+              placeholder="key（可随意填写，默认即可）"
             />
           </div>
 
@@ -123,6 +123,10 @@
             <li class="flex items-start gap-2">
               <span class="text-blue-500 mt-0.5">•</span>
               <span>写入内容：<code class="bg-blue-100 px-1.5 py-0.5 rounded font-mono">{"primaryApiKey": "您的密钥"}</code></span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-blue-500 mt-0.5">•</span>
+              <span><strong>API 密钥可随意编写</strong>（例如默认的 "key",仅限vscode配置，客户端配置的密钥必须是真实密钥），如果出错，可以尝试输入您的真实密钥</span>
             </li>
             <li class="flex items-start gap-2">
               <span class="text-blue-500 mt-0.5">•</span>
@@ -173,7 +177,7 @@ const clientConfig = ref({
 });
 
 const vscodeConfig = ref({
-  apiKey: ''
+  apiKey: 'key'
 });
 
 const isLoading = ref({
@@ -210,21 +214,19 @@ const handleClientConfigure = async () => {
 };
 
 const handleVSCodeConfigure = async () => {
-  if (!vscodeConfig.value.apiKey.trim()) {
-    emit('error', '请输入 API 密钥');
-    return;
-  }
+  // 如果 apiKey 为空，使用默认值 'key'
+  const apiKey = vscodeConfig.value.apiKey.trim() || 'key';
 
   isLoading.value.vscode = true;
 
   try {
     const result = await invoke('configure_vscode_claude', {
       baseUrl: '', // baseUrl 在后端不使用，传空字符串
-      apiKey: vscodeConfig.value.apiKey.trim(),
+      apiKey: apiKey,
     });
 
     emit('success', result);
-    vscodeConfig.value.apiKey = '';
+    vscodeConfig.value.apiKey = 'key';
   } catch (error) {
     emit('error', error);
   } finally {

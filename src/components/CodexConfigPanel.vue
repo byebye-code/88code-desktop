@@ -131,13 +131,16 @@
           <div class="mb-8">
             <label class="block text-sm font-semibold text-gray-700 mb-3">
               API 密钥
+              <span class="text-xs font-normal text-gray-500 ml-2">（保持默认值即可，实际密钥从环境变量 key88 读取）</span>
             </label>
             <input
               v-model="vscodeConfig.apiKey"
-              type="password"
-              class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
-              placeholder="输入您的 API 密钥"
+              type="text"
+              readonly
+              class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 cursor-not-allowed outline-none"
+              placeholder="apikey"
             />
+            <p class="text-xs text-gray-500 mt-2">💡 此字段无需修改，API 认证通过环境变量 key88 完成</p>
           </div>
 
           <button
@@ -217,7 +220,7 @@ const clientConfig = ref({
 
 const vscodeConfig = ref({
   baseUrl: 'https://88code.org/openai/v1',
-  apiKey: ''
+  apiKey: 'apikey'
 });
 
 const isLoading = ref({
@@ -254,11 +257,6 @@ const handleClientConfigure = async () => {
 };
 
 const handleVSCodeConfigure = async () => {
-  if (!vscodeConfig.value.apiKey.trim()) {
-    emit('error', '请输入 API 密钥');
-    return;
-  }
-
   if (!vscodeConfig.value.baseUrl.trim()) {
     emit('error', '请输入 Base URL');
     return;
@@ -273,7 +271,7 @@ const handleVSCodeConfigure = async () => {
     });
 
     emit('success', result);
-    vscodeConfig.value.apiKey = '';
+    // apiKey 保持默认值不清空
   } catch (error) {
     emit('error', error);
   } finally {

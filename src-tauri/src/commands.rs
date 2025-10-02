@@ -85,9 +85,12 @@ pub async fn get_current_codex_auth() -> Result<Option<codex_config::CodexAuth>,
 /// 配置 VSCode Claude 扩展
 #[tauri::command]
 pub async fn configure_vscode_claude(base_url: String, api_key: String) -> Result<String, String> {
-    if api_key.trim().is_empty() {
-        return Err("API 密钥不能为空".to_string());
-    }
+    // 如果 api_key 为空，使用默认值 "key"
+    let api_key = if api_key.trim().is_empty() {
+        "key".to_string()
+    } else {
+        api_key.trim().to_string()
+    };
 
     // VSCode Claude 扩展只需要 API Key，base_url 不做检查
     vscode::configure_vscode_claude(api_key, base_url)

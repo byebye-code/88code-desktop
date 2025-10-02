@@ -3,6 +3,80 @@ use serde_json::{json, Value};
 use std::fs;
 use crate::config::{get_claude_config_dir, get_claude_settings_path, write_json_file};
 
+/// 移除 JSON/JSONC 中的注释（简单实现）
+/// 处理单行注释 // 和多行注释 /* */
+fn strip_json_comments(content: &str) -> String {
+    let mut result = String::new();
+    let mut chars = content.chars().peekable();
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    while let Some(ch) = chars.next() {
+        if escape_next {
+            result.push(ch);
+            escape_next = false;
+            continue;
+        }
+
+        if ch == '\\' && in_string {
+            result.push(ch);
+            escape_next = true;
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = !in_string;
+            result.push(ch);
+            continue;
+        }
+
+        if in_string {
+            result.push(ch);
+            continue;
+        }
+
+        // 处理注释（仅在非字符串中）
+        if ch == '/' {
+            if let Some(&next_ch) = chars.peek() {
+                if next_ch == '/' {
+                    // 单行注释，跳到行尾
+                    chars.next(); // 消费第二个 /
+                    for c in chars.by_ref() {
+                        if c == '\n' {
+                            result.push('\n');
+                            break;
+                        }
+                    }
+                    continue;
+                } else if next_ch == '*' {
+                    // 多行注释，跳到 */
+                    chars.next(); // 消费 *
+                    let mut found_end = false;
+                    while let Some(c) = chars.next() {
+                        if c == '*' {
+                            if let Some(&n) = chars.peek() {
+                                if n == '/' {
+                                    chars.next(); // 消费 /
+                                    found_end = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if found_end {
+                        result.push(' '); // 用空格替代注释
+                    }
+                    continue;
+                }
+            }
+        }
+
+        result.push(ch);
+    }
+
+    result
+}
+
 /// 枚举可能的 VS Code 发行版配置目录名称
 fn vscode_product_dirs() -> Vec<&'static str> {
     vec![
@@ -97,14 +171,46 @@ pub fn configure_vscode_claude(api_key: String, _base_url: String) -> Result<Str
 /// 配置 VSCode Codex 扩展（配置 ChatGPT 扩展）
 /// 功能：在 VSCode settings.json 中写入 ChatGPT 扩展配置
 pub fn configure_vscode_codex(base_url: String, api_key: String) -> Result<String, String> {
-    let settings_path = find_existing_settings()
-        .ok_or_else(|| "未找到 VSCode settings.json 文件。请确保已安装 VSCode 并至少打开过一次。".to_string())?;
+    // 查找或创建 settings.json 路径
+    let settings_path = if let Some(path) = find_existing_settings() {
+        path
+    } else {
+        // 如果找不到现有配置，使用第一个候选路径（通常是 Code Stable）
+        let candidates = candidate_settings_paths();
+        if candidates.is_empty() {
+            return Err("无法确定 VSCode 配置目录路径。".to_string());
+        }
+        let path = candidates[0].clone();
 
-    // 读取现有设置（支持 JSONC 格式的简单处理）
-    let content = fs::read_to_string(&settings_path)
-        .map_err(|e| format!("读取 VSCode 设置失败: {}", e))?;
+        // 确保父目录存在
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建 VSCode 配置目录失败: {}", e))?;
+        }
 
-    let mut settings: Value = serde_json::from_str(&content).unwrap_or(json!({}));
+        log::info!("VSCode settings.json 不存在，将创建新文件: {:?}", path);
+        path
+    };
+
+    // 读取现有设置（如果文件存在），否则使用空对象
+    let mut settings: Value = if settings_path.exists() {
+        let content = fs::read_to_string(&settings_path)
+            .map_err(|e| format!("读取 VSCode 设置失败: {}", e))?;
+
+        // 移除注释后再解析（处理 JSONC 格式）
+        let cleaned_content = strip_json_comments(&content);
+
+        match serde_json::from_str(&cleaned_content) {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("解析 VSCode settings.json 失败，将使用空配置: {}", e);
+                log::warn!("原始内容长度: {}, 清理后长度: {}", content.len(), cleaned_content.len());
+                json!({})
+            }
+        }
+    } else {
+        json!({})
+    };
 
     // 更新 ChatGPT 扩展配置
     if let Some(obj) = settings.as_object_mut() {
