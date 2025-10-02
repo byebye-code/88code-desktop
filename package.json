@@ -1,8 +1,9 @@
 {
-  "name": "code-desktop",
+  "name": "88code-desktop",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "88code Claude Code & Codex 配置工具",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -12,10 +13,14 @@
   "dependencies": {
     "vue": "^3.5.13",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-opener": "^2",
+    "lucide-vue-next": "^0.542.0",
+    "tailwindcss": "^4.1.13",
+    "@tailwindcss/vite": "^4.1.13"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.3.0",
     "vite": "^6.0.3",
     "@tauri-apps/cli": "^2"
   }
