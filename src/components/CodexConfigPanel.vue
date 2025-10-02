@@ -32,6 +32,18 @@
       <!-- 客户端配置 -->
       <div v-show="activeTab === 'client'" class="animate-fade-in">
         <div class="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
+          <div class="mb-6">
+            <label class="block text-sm font-semibold text-gray-700 mb-3">
+              Base URL
+            </label>
+            <input
+              v-model="clientConfig.baseUrl"
+              type="text"
+              class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
+              placeholder="https://88code.org/openai/v1"
+            />
+          </div>
+
           <div class="mb-8">
             <label class="block text-sm font-semibold text-gray-700 mb-3">
               API 密钥
@@ -93,7 +105,29 @@
 
       <!-- VSCode 配置 -->
       <div v-show="activeTab === 'vscode'" class="animate-fade-in">
+        <!-- 提示信息 -->
+        <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-6">
+          <h3 class="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+            <Info :size="16" />配置说明
+          </h3>
+          <p class="text-xs text-blue-800">
+            <strong>此配置可能已不需要。</strong>如果您在 VSCode 中使用 Codex 插件已经正常工作，可以不执行此自动配置。此功能主要用于配置 VSCode 的 <strong>ChatGPT 扩展</strong>使用 88code 服务。
+          </p>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
+          <div class="mb-6">
+            <label class="block text-sm font-semibold text-gray-700 mb-3">
+              Base URL
+            </label>
+            <input
+              v-model="vscodeConfig.baseUrl"
+              type="text"
+              class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all duration-200"
+              placeholder="https://88code.org/openai/v1"
+            />
+          </div>
+
           <div class="mb-8">
             <label class="block text-sm font-semibold text-gray-700 mb-3">
               API 密钥
@@ -118,22 +152,16 @@
 
         <div class="bg-green-50 border-2 border-green-200 rounded-xl p-5">
           <h3 class="text-sm font-semibold text-green-900 mb-3 flex items-center gap-2">
-            <Info :size="16" />VSCode 配置说明
+            <Info :size="16" />配置详情
           </h3>
           <ul class="text-xs text-green-700 space-y-2">
             <li class="flex items-start gap-2">
               <span class="text-green-500 mt-0.5">•</span>
-              <span>将配置 VSCode 的 <strong>ChatGPT 扩展</strong>使用 88code 服务</span>
+              <span>将配置 VSCode 的 <strong>ChatGPT 扩展</strong></span>
             </li>
             <li class="flex items-start gap-2">
               <span class="text-green-500 mt-0.5">•</span>
-              <span>在 VSCode settings.json 中写入：</span>
-            </li>
-            <li class="ml-5 text-xs">
-              <code class="bg-green-100 px-2 py-1 rounded font-mono block mt-1">
-                "chatgpt.apiBase": "https://88code.org/openai/v1"<br/>
-                "chatgpt.config": {"preferred_auth_method": "apikey"}
-              </code>
+              <span>在 VSCode settings.json 中写入 <code class="bg-green-100 px-1.5 py-0.5 rounded font-mono">chatgpt.apiBase</code> 和 <code class="bg-green-100 px-1.5 py-0.5 rounded font-mono">chatgpt.config</code></span>
             </li>
             <li class="flex items-start gap-2">
               <span class="text-green-500 mt-0.5">•</span>
@@ -183,10 +211,12 @@ const emit = defineEmits(['success', 'error']);
 const activeTab = ref('client');
 
 const clientConfig = ref({
+  baseUrl: 'https://88code.org/openai/v1',
   apiKey: ''
 });
 
 const vscodeConfig = ref({
+  baseUrl: 'https://88code.org/openai/v1',
   apiKey: ''
 });
 
@@ -201,10 +231,16 @@ const handleClientConfigure = async () => {
     return;
   }
 
+  if (!clientConfig.value.baseUrl.trim()) {
+    emit('error', '请输入 Base URL');
+    return;
+  }
+
   isLoading.value.client = true;
 
   try {
     const result = await invoke('configure_codex', {
+      baseUrl: clientConfig.value.baseUrl.trim(),
       apiKey: clientConfig.value.apiKey.trim(),
     });
 
@@ -223,10 +259,16 @@ const handleVSCodeConfigure = async () => {
     return;
   }
 
+  if (!vscodeConfig.value.baseUrl.trim()) {
+    emit('error', '请输入 Base URL');
+    return;
+  }
+
   isLoading.value.vscode = true;
 
   try {
     const result = await invoke('configure_vscode_codex', {
+      baseUrl: vscodeConfig.value.baseUrl.trim(),
       apiKey: vscodeConfig.value.apiKey.trim(),
     });
 

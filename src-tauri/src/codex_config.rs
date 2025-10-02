@@ -8,22 +8,27 @@ pub struct CodexAuth {
     pub openai_api_key: String,
 }
 
-/// 固定的 Codex config.toml 模板
-const CODEX_CONFIG_TEMPLATE: &str = r#"model_provider = "88code"
+/// 生成 Codex config.toml 内容（使用用户提供的 base_url）
+fn generate_config_toml(base_url: &str) -> String {
+    format!(
+        r#"model_provider = "88code"
 model = "gpt-5-codex"
 model_reasoning_effort = "high"
 disable_response_storage = true
 
 [model_providers.88code]
 name = "88code"
-base_url = "https://88code.org/openai/v1"
+base_url = "{}"
 wire_api = "responses"
 env_key = "key88"
 requires_openai_auth = true
-"#;
+"#,
+        base_url
+    )
+}
 
 /// 配置 Codex
-pub fn configure_codex(api_key: String) -> Result<(), String> {
+pub fn configure_codex(base_url: String, api_key: String) -> Result<(), String> {
     let auth_path = get_codex_auth_path();
     let config_path = get_codex_config_path();
 
@@ -35,10 +40,12 @@ pub fn configure_codex(api_key: String) -> Result<(), String> {
     // 写入 auth.json
     write_json_file(&auth_path, &auth)?;
 
-    // 写入 config.toml (使用固定模板)
-    write_text_file(&config_path, CODEX_CONFIG_TEMPLATE)?;
+    // 生成并写入 config.toml (使用用户提供的 base_url)
+    let config_content = generate_config_toml(&base_url);
+    write_text_file(&config_path, &config_content)?;
 
     log::info!("Codex 配置成功");
+    log::info!("  base_url: {}", base_url);
     log::info!("  auth.json: {:?}", auth_path);
     log::info!("  config.toml: {:?}", config_path);
 

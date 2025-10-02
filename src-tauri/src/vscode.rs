@@ -96,7 +96,7 @@ pub fn configure_vscode_claude(api_key: String, _base_url: String) -> Result<Str
 
 /// 配置 VSCode Codex 扩展（配置 ChatGPT 扩展）
 /// 功能：在 VSCode settings.json 中写入 ChatGPT 扩展配置
-pub fn configure_vscode_codex(api_key: String) -> Result<String, String> {
+pub fn configure_vscode_codex(base_url: String, api_key: String) -> Result<String, String> {
     let settings_path = find_existing_settings()
         .ok_or_else(|| "未找到 VSCode settings.json 文件。请确保已安装 VSCode 并至少打开过一次。".to_string())?;
 
@@ -108,10 +108,10 @@ pub fn configure_vscode_codex(api_key: String) -> Result<String, String> {
 
     // 更新 ChatGPT 扩展配置
     if let Some(obj) = settings.as_object_mut() {
-        // 设置 API Base URL（88code 的 Codex 服务）
+        // 设置 API Base URL（使用用户提供的 URL）
         obj.insert(
             "chatgpt.apiBase".to_string(),
-            Value::String("https://88code.org/openai/v1".to_string()),
+            Value::String(base_url.clone()),
         );
 
         // 设置认证方式为 apikey
@@ -123,7 +123,7 @@ pub fn configure_vscode_codex(api_key: String) -> Result<String, String> {
         obj.insert("chatgpt.config".to_string(), Value::Object(config_obj));
 
         // 注意：API Key 通过环境变量 key88 传递，不直接写入 settings.json
-        log::info!("已配置 ChatGPT 扩展使用 88code 服务，请确保环境变量 key88={}", api_key);
+        log::info!("已配置 ChatGPT 扩展使用自定义服务: {}, 请确保环境变量 key88={}", base_url, api_key);
     }
 
     // 写入配置
@@ -133,8 +133,9 @@ pub fn configure_vscode_codex(api_key: String) -> Result<String, String> {
     crate::config::atomic_write(&settings_path, json_str.as_bytes())?;
 
     Ok(format!(
-        "VSCode 配置成功！路径: {}\n已配置 ChatGPT 扩展使用 88code 服务。\n请重新加载 VSCode 窗口以使配置生效。",
-        settings_path.display()
+        "VSCode 配置成功！路径: {}\n已配置 ChatGPT 扩展使用自定义服务: {}\n请重新加载 VSCode 窗口以使配置生效。",
+        settings_path.display(),
+        base_url
     ))
 }
 
