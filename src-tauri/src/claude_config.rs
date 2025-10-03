@@ -1,5 +1,6 @@
 use crate::config::{get_claude_settings_path, read_json_file, write_json_file};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 /// Claude Code settings.json 的结构
@@ -8,6 +9,9 @@ pub struct ClaudeSettings {
     pub env: HashMap<String, String>,
     #[serde(default)]
     pub permissions: Permissions,
+    /// 保留未知字段，防止版本更新时丢失新字段
+    #[serde(flatten)]
+    pub extra: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -23,6 +27,7 @@ impl Default for ClaudeSettings {
         Self {
             env: HashMap::new(),
             permissions: Permissions::default(),
+            extra: HashMap::new(),
         }
     }
 }

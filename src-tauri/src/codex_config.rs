@@ -1,11 +1,16 @@
 use crate::config::{get_codex_auth_path, get_codex_config_path, write_json_file, write_text_file};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 
 /// Codex auth.json 的结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodexAuth {
     #[serde(rename = "OPENAI_API_KEY")]
     pub openai_api_key: String,
+    /// 保留未知字段，防止版本更新时丢失新字段
+    #[serde(flatten)]
+    pub extra: HashMap<String, Value>,
 }
 
 /// 生成 Codex config.toml 内容（使用用户提供的 base_url）
@@ -32,10 +37,21 @@ pub fn configure_codex(base_url: String, api_key: String) -> Result<(), String> 
     let auth_path = get_codex_auth_path();
     let config_path = get_codex_config_path();
 
-    // 创建 auth.json
-    let auth = CodexAuth {
-        openai_api_key: api_key.clone(),
+    // 读取现有 auth.json（如果存在），保留 extra 字段
+    let mut auth = if auth_path.exists() {
+        get_codex_auth()?.unwrap_or_else(|| CodexAuth {
+            openai_api_key: api_key.clone(),
+            extra: HashMap::new(),
+        })
+    } else {
+        CodexAuth {
+            openai_api_key: api_key.clone(),
+            extra: HashMap::new(),
+        }
     };
+
+    // 更新 API key
+    auth.openai_api_key = api_key.clone();
 
     // 写入 auth.json
     write_json_file(&auth_path, &auth)?;
