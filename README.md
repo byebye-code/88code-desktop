@@ -42,6 +42,7 @@ pnpm tauri build
 ```
 ## 使用
 windows可在release中下载exe直接运行
+
 linux和mac可本地自行build
 
 ## 配置路径
