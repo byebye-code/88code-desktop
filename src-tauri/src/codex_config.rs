@@ -41,44 +41,50 @@ pub fn configure_codex(base_url: String, api_key: String) -> Result<(), String> 
     let auth_path = get_codex_auth_path();
     let config_path = get_codex_config_path();
 
-    // 读取现有 auth.json 的原始JSON（保留所有字段）
-    let mut auth_value: Value = if auth_path.exists() {
+    // 读取现有 auth.json，提取所有字段（使用Vec保持顺序）
+    let mut extra_fields = Vec::new();
+
+    if auth_path.exists() {
         match std::fs::read_to_string(&auth_path) {
             Ok(content) => {
-                serde_json::from_str(&content).unwrap_or_else(|e| {
-                    log::warn!("解析现有 auth.json 失败: {}，将创建新配置", e);
-                    serde_json::json!({})
-                })
+                if let Ok(existing) = serde_json::from_str::<Value>(&content) {
+                    if let Some(obj) = existing.as_object() {
+                        // 提取所有字段（保持顺序）
+                        for (key, value) in obj {
+                            if key != "OPENAI_API_KEY" {
+                                extra_fields.push((key.clone(), value.clone()));
+                            }
+                        }
+                    }
+                }
             }
             Err(e) => {
                 log::warn!("读取现有 auth.json 失败: {}，将创建新配置", e);
-                serde_json::json!({})
             }
         }
-    } else {
-        serde_json::json!({})
-    };
-
-    // 确保是对象
-    if !auth_value.is_object() {
-        auth_value = serde_json::json!({});
     }
 
-    // 更新 OPENAI_API_KEY
-    if let Some(obj) = auth_value.as_object_mut() {
-        obj.insert("OPENAI_API_KEY".to_string(), Value::String(api_key.clone()));
+    // 按固定顺序构建 auth.json 字符串
+    let mut json_str = String::from("{\n");
+    json_str.push_str(&format!("  \"OPENAI_API_KEY\": \"{}\"",
+        api_key.replace("\\", "\\\\").replace("\"", "\\\"")));
+
+    // 添加其他字段（Vec保持原顺序）
+    for (key, value) in &extra_fields {
+        json_str.push_str(",\n");
+        json_str.push_str(&format!("  \"{}\": {}", key,
+            serde_json::to_string(value).unwrap_or_default()));
     }
+
+    json_str.push_str("\n}\n");
 
     // 写入 auth.json
-    let auth_json_str = serde_json::to_string_pretty(&auth_value)
-        .map_err(|e| format!("序列化 auth.json 失败: {}", e))?;
-
     if let Some(parent) = auth_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("创建 Codex 配置目录失败: {}", e))?;
     }
 
-    std::fs::write(&auth_path, auth_json_str)
+    std::fs::write(&auth_path, json_str)
         .map_err(|e| format!("写入 auth.json 失败: {}", e))?;
 
     // 读取现有 config.toml（如果存在），提取未知字段
@@ -211,31 +217,67 @@ pub fn configure_codex_advanced(
     let config_path = get_codex_config_path();
 
     // 验证并解析 auth.json
-    let new_auth: CodexAuth = serde_json::from_str(&auth_json)
+    let new_auth_value: Value = serde_json::from_str(&auth_json)
         .map_err(|e| format!("auth.json 格式错误: {}", e))?;
 
-    // 读取现有 auth.json（如果存在）
-    let existing_auth = if auth_path.exists() {
-        get_codex_auth()?.unwrap_or_else(|| CodexAuth {
-            openai_api_key: api_key.clone(),
-            extra: HashMap::new(),
-        })
-    } else {
-        CodexAuth {
-            openai_api_key: api_key.clone(),
-            extra: HashMap::new(),
-        }
-    };
+    // 读取现有 auth.json，提取所有字段（使用Vec保持顺序）
+    let mut extra_fields = Vec::new();
+    let mut api_key_value = api_key.clone();
 
-    // 合并 auth.json：更新 API key，保留 extra 字段
-    let mut merged_auth = existing_auth;
-    merged_auth.openai_api_key = new_auth.openai_api_key;
-    for (key, value) in new_auth.extra {
-        merged_auth.extra.insert(key, value);
+    if auth_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&auth_path) {
+            if let Ok(existing) = serde_json::from_str::<Value>(&content) {
+                if let Some(obj) = existing.as_object() {
+                    // 提取所有字段（保持顺序）
+                    for (key, value) in obj {
+                        if key == "OPENAI_API_KEY" {
+                            if let Some(s) = value.as_str() {
+                                api_key_value = s.to_string();
+                            }
+                        } else {
+                            extra_fields.push((key.clone(), value.clone()));
+                        }
+                    }
+                }
+            }
+        }
     }
 
+    // 从新配置中更新字段
+    if let Some(obj) = new_auth_value.as_object() {
+        for (key, value) in obj {
+            if key == "OPENAI_API_KEY" {
+                if let Some(s) = value.as_str() {
+                    api_key_value = s.to_string();
+                }
+            } else {
+                // 更新或添加
+                if let Some(pos) = extra_fields.iter().position(|(k, _)| k == key) {
+                    extra_fields[pos] = (key.clone(), value.clone());
+                } else {
+                    extra_fields.push((key.clone(), value.clone()));
+                }
+            }
+        }
+    }
+
+    // 按固定顺序构建 auth.json 字符串
+    let mut auth_json_str = String::from("{\n");
+    auth_json_str.push_str(&format!("  \"OPENAI_API_KEY\": \"{}\"",
+        api_key_value.replace("\\", "\\\\").replace("\"", "\\\"")));
+
+    // 添加其他字段（Vec保持原顺序）
+    for (key, value) in &extra_fields {
+        auth_json_str.push_str(",\n");
+        auth_json_str.push_str(&format!("  \"{}\": {}", key,
+            serde_json::to_string(value).unwrap_or_default()));
+    }
+
+    auth_json_str.push_str("\n}\n");
+
     // 写入 auth.json
-    write_json_file(&auth_path, &merged_auth)?;
+    std::fs::write(&auth_path, auth_json_str)
+        .map_err(|e| format!("写入 auth.json 失败: {}", e))?;
 
     // 解析新的config.toml
     let new_toml: toml::Value = toml::from_str(&config_toml)

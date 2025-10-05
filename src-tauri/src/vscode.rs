@@ -77,6 +77,70 @@ fn strip_json_comments(content: &str) -> String {
     result
 }
 
+/// 修复 JSON 中的尾部逗号（对象和数组最后一个元素后的逗号）
+fn fix_json_trailing_commas(content: &str) -> String {
+    let mut result = String::new();
+    let mut chars = content.chars().peekable();
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    while let Some(ch) = chars.next() {
+        if escape_next {
+            result.push(ch);
+            escape_next = false;
+            continue;
+        }
+
+        if ch == '\\' && in_string {
+            result.push(ch);
+            escape_next = true;
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = !in_string;
+            result.push(ch);
+            continue;
+        }
+
+        if in_string {
+            result.push(ch);
+            continue;
+        }
+
+        // 检查是否是尾部逗号（逗号后面只有空白字符，然后是 } 或 ]）
+        if ch == ',' {
+            result.push(ch);
+
+            // 向前看，检查后面是否只有空白和 } 或 ]
+            let mut temp_chars = chars.clone();
+            let mut found_closing = false;
+            let mut is_trailing = false;
+
+            while let Some(&next) = temp_chars.peek() {
+                if next.is_whitespace() {
+                    temp_chars.next();
+                    continue;
+                }
+                if next == '}' || next == ']' {
+                    found_closing = true;
+                    is_trailing = true;
+                }
+                break;
+            }
+
+            // 如果是尾部逗号，从result中移除最后一个字符（逗号）
+            if is_trailing && found_closing {
+                result.pop();
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
+}
+
 /// 枚举可能的 VS Code 发行版配置目录名称
 fn vscode_product_dirs() -> Vec<&'static str> {
     vec![
@@ -112,6 +176,14 @@ pub fn candidate_settings_paths() -> Vec<PathBuf> {
         if let Some(roaming) = dirs::config_dir() {
             for prod in vscode_product_dirs() {
                 paths.push(roaming.join(prod).join("User").join("settings.json"));
+            }
+        } else {
+            // 备用方案：尝试从环境变量直接读取
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let appdata_path = PathBuf::from(appdata);
+                for prod in vscode_product_dirs() {
+                    paths.push(appdata_path.join(prod).join("User").join("settings.json"));
+                }
             }
         }
     }
@@ -178,7 +250,14 @@ pub fn configure_vscode_codex(base_url: String, api_key: String) -> Result<Strin
         // 如果找不到现有配置，使用第一个候选路径（通常是 Code Stable）
         let candidates = candidate_settings_paths();
         if candidates.is_empty() {
-            return Err("无法确定 VSCode 配置目录路径。".to_string());
+            return Err(
+                "无法确定 VSCode 配置目录路径。\n\
+                 请检查：\n\
+                 1. 是否已安装 VSCode\n\
+                 2. Windows 系统环境变量 %APPDATA% 是否设置正确\n\
+                 3. 可以尝试手动创建配置文件：%APPDATA%\\Code\\User\\settings.json"
+                    .to_string(),
+            );
         }
         let path = candidates[0].clone();
 
@@ -192,51 +271,195 @@ pub fn configure_vscode_codex(base_url: String, api_key: String) -> Result<Strin
         path
     };
 
-    // 读取现有设置（如果文件存在），否则使用空对象
-    let mut settings: Value = if settings_path.exists() {
-        let content = fs::read_to_string(&settings_path)
-            .map_err(|e| format!("读取 VSCode 设置失败: {}", e))?;
-
-        // 移除注释后再解析（处理 JSONC 格式）
-        let cleaned_content = strip_json_comments(&content);
-
-        match serde_json::from_str(&cleaned_content) {
-            Ok(v) => v,
-            Err(e) => {
-                log::warn!("解析 VSCode settings.json 失败，将使用空配置: {}", e);
-                log::warn!("原始内容长度: {}, 清理后长度: {}", content.len(), cleaned_content.len());
-                json!({})
-            }
-        }
+    // 读取现有设置内容
+    let original_content = if settings_path.exists() {
+        fs::read_to_string(&settings_path)
+            .map_err(|e| format!("读取 VSCode 设置失败: {}", e))?
     } else {
-        json!({})
+        String::from("{\n}")
     };
 
-    // 更新 ChatGPT 扩展配置
-    if let Some(obj) = settings.as_object_mut() {
-        // 设置 API Base URL（使用用户提供的 URL）
-        obj.insert(
-            "chatgpt.apiBase".to_string(),
-            Value::String(base_url.clone()),
-        );
+    // 验证 JSON 格式是否正确（移除注释和尾部逗号后验证）
+    let cleaned_content = strip_json_comments(&original_content);
+    let fixed_content = fix_json_trailing_commas(&cleaned_content);
 
-        // 设置认证方式为 apikey
-        let mut config_obj = serde_json::Map::new();
-        config_obj.insert(
-            "preferred_auth_method".to_string(),
-            Value::String("apikey".to_string()),
-        );
-        obj.insert("chatgpt.config".to_string(), Value::Object(config_obj));
+    // 尝试解析以验证格式（仅用于验证，不用于重构）
+    let _validation: Value = serde_json::from_str(&fixed_content).map_err(|e| {
+        format!(
+            "无法解析 VSCode settings.json 文件。\n\
+             原因: {}\n\
+             文件路径: {:?}\n\n\
+             请检查配置文件格式是否正确。",
+            e,
+            settings_path
+        )
+    })?;
 
-        // 注意：API Key 通过环境变量 key88 传递，不直接写入 settings.json
-        log::info!("已配置 ChatGPT 扩展使用自定义服务: {}, 请确保环境变量 key88={}", base_url, api_key);
+    // 在原文本基础上修改，完全保持原顺序
+    let mut final_content = original_content.clone();
+
+    // 检查是否已存在配置
+    let has_api_base = final_content.contains(r#""chatgpt.apiBase""#);
+    let has_config = final_content.contains(r#""chatgpt.config""#);
+
+    if has_api_base {
+        // 更新 apiBase 值（简单字符串替换，查找整个键值对）
+        // 匹配模式："chatgpt.apiBase": "任意内容"
+        let lines: Vec<&str> = final_content.lines().collect();
+        let mut new_lines = Vec::new();
+
+        for line in lines {
+            if line.contains(r#""chatgpt.apiBase""#) && line.contains(':') {
+                // 提取缩进
+                let indent = line.chars().take_while(|c| c.is_whitespace()).collect::<String>();
+                // 检查是否有尾部逗号
+                let has_comma = line.trim_end().ends_with(',');
+                let comma = if has_comma { "," } else { "" };
+                new_lines.push(format!(r#"{}"chatgpt.apiBase": "{}"{}"#, indent, base_url, comma));
+            } else {
+                new_lines.push(line.to_string());
+            }
+        }
+        final_content = new_lines.join("\n");
+    }
+
+    if has_config {
+        // 更新 config 对象（需要处理多行）
+        let lines: Vec<&str> = final_content.lines().collect();
+        let mut new_lines = Vec::new();
+        let mut in_chatgpt_config = false;
+        let mut config_indent = String::new();
+        let mut brace_count = 0;
+        let mut has_comma_after = false;
+
+        for (i, line) in lines.iter().enumerate() {
+            if line.contains(r#""chatgpt.config""#) && line.contains(':') {
+                in_chatgpt_config = true;
+                config_indent = line.chars().take_while(|c| c.is_whitespace()).collect::<String>();
+                brace_count = 0;
+
+                // 检查是否有逗号在闭合括号后
+                let remaining_lines = &lines[i..];
+                for future_line in remaining_lines {
+                    if future_line.trim().starts_with('}') {
+                        has_comma_after = future_line.trim_end().ends_with(',');
+                        break;
+                    }
+                }
+
+                // 写入新的配置
+                new_lines.push(format!(r#"{}"chatgpt.config": {{"#, config_indent));
+                new_lines.push(format!(r#"{}  "preferred_auth_method": "apikey""#, config_indent));
+                let comma = if has_comma_after { "," } else { "" };
+                new_lines.push(format!(r#"{}}}{}"#, config_indent, comma));
+                continue;
+            }
+
+            if in_chatgpt_config {
+                // 统计大括号
+                for ch in line.chars() {
+                    if ch == '{' {
+                        brace_count += 1;
+                    } else if ch == '}' {
+                        brace_count -= 1;
+                        if brace_count < 0 {
+                            in_chatgpt_config = false;
+                            break;
+                        }
+                    }
+                }
+                // 跳过原配置行
+                continue;
+            }
+
+            new_lines.push(line.to_string());
+        }
+        final_content = new_lines.join("\n");
+    }
+
+    // 如果都不存在，在末尾添加
+    if !has_api_base && !has_config {
+        // 查找最后一个 }
+        if let Some(last_brace_pos) = final_content.rfind('}') {
+            // 检查倒数第二行的内容，判断是否需要逗号
+            let before_brace = &final_content[..last_brace_pos];
+            let lines: Vec<&str> = before_brace.lines().collect();
+
+            // 获取缩进（从倒数第二行）
+            let indent = if let Some(last_line) = lines.last() {
+                last_line.chars().take_while(|c| c.is_whitespace()).collect::<String>()
+            } else {
+                String::from("  ")
+            };
+
+            // 检查是否需要逗号
+            let needs_comma = if let Some(last_line) = lines.last() {
+                let trimmed = last_line.trim();
+                !trimmed.is_empty() && !trimmed.ends_with(',') && trimmed != "{"
+            } else {
+                false
+            };
+
+            let comma_prefix = if needs_comma { "," } else { "" };
+
+            let insertion = format!(
+                "{}\n{}\"{}\": \"{}\",\n{}\"chatgpt.config\": {{\n{}  \"preferred_auth_method\": \"apikey\"\n{}}}\n",
+                comma_prefix,
+                indent,
+                "chatgpt.apiBase",
+                base_url,
+                indent,
+                indent,
+                indent
+            );
+
+            final_content.insert_str(last_brace_pos, &insertion);
+        }
+    } else if has_api_base && !has_config {
+        // 只有 apiBase，添加 config
+        if let Some(last_brace_pos) = final_content.rfind('}') {
+            let before_brace = &final_content[..last_brace_pos];
+            let lines: Vec<&str> = before_brace.lines().collect();
+            let indent = if let Some(last_line) = lines.last() {
+                last_line.chars().take_while(|c| c.is_whitespace()).collect::<String>()
+            } else {
+                String::from("  ")
+            };
+            let needs_comma = if let Some(last_line) = lines.last() {
+                !last_line.trim_end().ends_with(',')
+            } else {
+                false
+            };
+
+            let insertion = format!(
+                "{}\n{}\"chatgpt.config\": {{\n{}  \"preferred_auth_method\": \"apikey\"\n{}}}\n",
+                if needs_comma { "," } else { "" },
+                indent,
+                indent,
+                indent
+            );
+            final_content.insert_str(last_brace_pos, &insertion);
+        }
+    } else if !has_api_base && has_config {
+        // 只有 config，添加 apiBase（在 config 之前）
+        // 找到 chatgpt.config 的位置
+        if let Some(config_pos) = final_content.find(r#""chatgpt.config""#) {
+            // 找到这一行的开始
+            let before_config = &final_content[..config_pos];
+            if let Some(line_start) = before_config.rfind('\n') {
+                let indent_line = &final_content[line_start + 1..config_pos];
+                let indent = indent_line.chars().take_while(|c| c.is_whitespace()).collect::<String>();
+
+                let insertion = format!(r#""chatgpt.apiBase": "{}",{}"#, base_url, '\n');
+                final_content.insert_str(line_start + 1, &format!("{}{}", indent, insertion));
+            }
+        }
     }
 
     // 写入配置
-    let json_str = serde_json::to_string_pretty(&settings)
-        .map_err(|e| format!("序列化设置失败: {}", e))?;
+    crate::config::atomic_write(&settings_path, final_content.as_bytes())?;
 
-    crate::config::atomic_write(&settings_path, json_str.as_bytes())?;
+    log::info!("已配置 ChatGPT 扩展使用自定义服务: {}, 请确保环境变量 key88={}", base_url, api_key);
 
     Ok(format!(
         "VSCode 配置成功！路径: {}\n已配置 ChatGPT 扩展使用自定义服务: {}\n请重新加载 VSCode 窗口以使配置生效。",
