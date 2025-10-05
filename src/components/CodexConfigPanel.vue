@@ -4,7 +4,7 @@
       <!-- 头部 -->
       <div class="flex items-center gap-4 mb-8">
         <div class="p-3 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-lg">
-          <Code2 class="text-white" :size="32" />
+          <CodexIcon :size="32" color="white" />
         </div>
         <div>
           <h2 class="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
@@ -17,21 +17,43 @@
       </div>
 
       <!-- 标签页 -->
-      <div class="bg-gray-100 p-1.5 rounded-xl mb-6 inline-flex gap-1">
+      <div class="bg-gray-100 p-1.5 rounded-xl mb-4 inline-flex gap-1">
         <TabButton :active="activeTab === 'client'" @click="activeTab = 'client'">
-          <Terminal :size="16" class="inline mr-2" />客户端配置
+          <TerminalIcon :size="16" color="currentColor" class="inline mr-2" />客户端配置
         </TabButton>
         <TabButton :active="activeTab === 'vscode'" @click="activeTab = 'vscode'">
-          <Code :size="16" class="inline mr-2" />VSCode 配置
+          <VSCodeIcon :size="16" color="currentColor" class="inline mr-2" />VSCode 配置
         </TabButton>
         <TabButton :active="activeTab === 'jetbrains'" @click="activeTab = 'jetbrains'">
-          <Braces :size="16" class="inline mr-2" />JetBrains 配置
+          <JetBrainsIcon :size="16" color="currentColor" class="inline mr-2" />JetBrains 配置
         </TabButton>
+      </div>
+
+      <!-- 使用提示 -->
+      <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+        <div class="flex gap-3">
+          <Info class="text-green-600 flex-shrink-0" :size="20" />
+          <div class="text-sm text-green-800">
+            <p class="font-semibold mb-1">配置说明</p>
+            <p><strong>高级配置</strong>允许您自定义配置文件内容，适合有经验的用户。<strong>小白用户请直接使用自动配置</strong>，填写 API 密钥和 Base URL 即可。</p>
+          </div>
+        </div>
       </div>
 
       <!-- 客户端配置 -->
       <div v-show="activeTab === 'client'" class="animate-fade-in">
         <div class="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100 hover:shadow-2xl transition-shadow duration-300">
+          <!-- 高级配置按钮 -->
+          <div class="flex justify-end mb-4">
+            <button
+              @click="isAdvancedModalOpen = true"
+              class="px-3 py-1.5 text-xs bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center gap-1.5"
+            >
+              <Settings2 :size="14" />
+              高级配置
+            </button>
+          </div>
+
           <div class="mb-6">
             <label class="block text-sm font-semibold text-gray-700 mb-3">
               Base URL
@@ -67,9 +89,19 @@
         </div>
 
         <div v-if="configPaths" class="bg-green-50 border-2 border-green-200 rounded-xl p-5 mb-4">
-          <h3 class="text-sm font-semibold text-green-900 mb-3 flex items-center gap-2">
-            <FolderOpen :size="16" />配置文件路径
-          </h3>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-green-900 flex items-center gap-2">
+              <FolderOpen :size="16" />配置文件路径
+            </h3>
+            <button
+              @click="handleDeleteConfig"
+              class="px-3 py-1.5 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors flex items-center gap-1.5"
+              title="删除配置文件，清空所有配置"
+            >
+              <Trash2 :size="14" />
+              清空配置
+            </button>
+          </div>
           <div class="space-y-2">
             <div class="text-xs text-green-700 bg-white rounded-lg p-3">
               <span class="font-semibold">auth.json:</span>
@@ -193,14 +225,27 @@
         </div>
       </div>
     </div>
+
+    <!-- 高级配置模态框 -->
+    <AdvancedConfigModal
+      :isOpen="isAdvancedModalOpen"
+      type="codex"
+      @close="isAdvancedModalOpen = false"
+      @apply="handleAdvancedConfig"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Code2, Settings, Code, Terminal, Braces, FolderOpen, Info, AlertCircle, AlertTriangle } from 'lucide-vue-next';
+import { Settings, FolderOpen, Info, AlertCircle, AlertTriangle, Settings2, Trash2 } from 'lucide-vue-next';
 import TabButton from './TabButton.vue';
+import CodexIcon from './icons/CodexIcon.vue';
+import VSCodeIcon from './icons/VSCodeIcon.vue';
+import JetBrainsIcon from './icons/JetBrainsIcon.vue';
+import TerminalIcon from './icons/TerminalIcon.vue';
+import AdvancedConfigModal from './AdvancedConfigModal.vue';
 
 const props = defineProps({
   configPaths: {
@@ -212,6 +257,7 @@ const props = defineProps({
 const emit = defineEmits(['success', 'error']);
 
 const activeTab = ref('client');
+const isAdvancedModalOpen = ref(false);
 
 const clientConfig = ref({
   baseUrl: 'https://88code.org/openai/v1',
@@ -276,6 +322,42 @@ const handleVSCodeConfigure = async () => {
     emit('error', error);
   } finally {
     isLoading.value.vscode = false;
+  }
+};
+
+const handleAdvancedConfig = async (config) => {
+  isLoading.value.client = true;
+
+  try {
+    // 解析高级配置内容
+    const configData = JSON.parse(config.configContent);
+
+    // 使用高级配置命令，传递完整的配置内容
+    const result = await invoke('configure_codex_advanced', {
+      authJson: configData.authJson,
+      configToml: configData.configToml,
+      apiKey: config.apiKey.trim(),
+    });
+
+    emit('success', result);
+    isAdvancedModalOpen.value = false;
+  } catch (error) {
+    emit('error', error);
+  } finally {
+    isLoading.value.client = false;
+  }
+};
+
+const handleDeleteConfig = async () => {
+  if (!confirm('确定要删除 Codex 配置文件吗？\n\n这将清空所有配置，包括 auth.json、config.toml 等。此操作不可恢复。')) {
+    return;
+  }
+
+  try {
+    const result = await invoke('delete_codex_config');
+    emit('success', result);
+  } catch (error) {
+    emit('error', error);
   }
 };
 </script>

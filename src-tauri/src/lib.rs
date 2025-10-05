@@ -25,6 +25,10 @@ pub fn run() {
             commands::configure_vscode_claude,
             commands::configure_vscode_codex,
             commands::get_vscode_paths,
+            commands::configure_claude_advanced,
+            commands::configure_codex_advanced,
+            commands::delete_claude_config,
+            commands::delete_codex_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

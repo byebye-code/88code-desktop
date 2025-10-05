@@ -118,3 +118,86 @@ pub async fn configure_vscode_codex(base_url: String, api_key: String) -> Result
 pub async fn get_vscode_paths() -> Result<Vec<String>, String> {
     Ok(vscode::get_vscode_paths_info())
 }
+
+/// 高级配置 Claude Code（允许用户自定义完整配置内容）
+#[tauri::command]
+pub async fn configure_claude_advanced(config_content: String) -> Result<String, String> {
+    claude_config::configure_claude_advanced(config_content)?;
+    Ok("Claude Code 高级配置成功！".to_string())
+}
+
+/// 高级配置 Codex（允许用户自定义完整配置内容）
+#[tauri::command]
+pub async fn configure_codex_advanced(
+    auth_json: String,
+    config_toml: String,
+    api_key: String,
+) -> Result<String, String> {
+    codex_config::configure_codex_advanced(auth_json, config_toml, api_key.clone())?;
+
+    // 设置环境变量 key88
+    env_manager::set_key88_env(api_key)?;
+
+    #[cfg(windows)]
+    {
+        Ok("Codex 高级配置成功！环境变量 key88 已设置，请重启 Codex 以使环境变量生效。".to_string())
+    }
+
+    #[cfg(not(windows))]
+    {
+        Ok("Codex 高级配置成功！环境变量 key88 已添加到 shell 配置文件，请重启终端或运行 'source ~/.zshrc' (或相应的配置文件) 以使环境变量生效。".to_string())
+    }
+}
+
+/// 删除 Claude Code 配置文件
+#[tauri::command]
+pub async fn delete_claude_config() -> Result<String, String> {
+    let settings_path = config::get_claude_settings_path();
+
+    if settings_path.exists() {
+        std::fs::remove_file(&settings_path)
+            .map_err(|e| format!("删除配置文件失败: {}", e))?;
+        Ok(format!("已删除配置文件: {:?}", settings_path))
+    } else {
+        Ok("配置文件不存在".to_string())
+    }
+}
+
+/// 删除 Codex 配置文件
+#[tauri::command]
+pub async fn delete_codex_config() -> Result<String, String> {
+    let auth_path = config::get_codex_auth_path();
+    let config_path = config::get_codex_config_path();
+
+    let mut deleted = Vec::new();
+    let mut not_exist = Vec::new();
+
+    if auth_path.exists() {
+        std::fs::remove_file(&auth_path)
+            .map_err(|e| format!("删除 auth.json 失败: {}", e))?;
+        deleted.push("auth.json");
+    } else {
+        not_exist.push("auth.json");
+    }
+
+    if config_path.exists() {
+        std::fs::remove_file(&config_path)
+            .map_err(|e| format!("删除 config.toml 失败: {}", e))?;
+        deleted.push("config.toml");
+    } else {
+        not_exist.push("config.toml");
+    }
+
+    let mut msg = String::new();
+    if !deleted.is_empty() {
+        msg.push_str(&format!("已删除: {}", deleted.join(", ")));
+    }
+    if !not_exist.is_empty() {
+        if !msg.is_empty() {
+            msg.push_str("；");
+        }
+        msg.push_str(&format!("不存在: {}", not_exist.join(", ")));
+    }
+
+    Ok(msg)
+}

@@ -32,7 +32,7 @@
             ? 'bg-white/20'
             : 'bg-gray-700/50 group-hover:bg-gray-700'
         ]">
-          <Cloud :size="18" />
+          <ClaudeIcon :size="18" color="currentColor" />
         </div>
         <div class="flex-1 text-left">
           <span class="font-semibold text-sm">Claude Code</span>
@@ -56,7 +56,7 @@
             ? 'bg-white/20'
             : 'bg-gray-700/50 group-hover:bg-gray-700'
         ]">
-          <Code2 :size="18" />
+          <CodexIcon :size="18" color="currentColor" />
         </div>
         <div class="flex-1 text-left">
           <span class="font-semibold text-sm">Codex</span>
@@ -73,7 +73,7 @@
           <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           <span>运行中</span>
         </div>
-        <span class="font-mono">v0.1.0</span>
+        <span class="font-mono">v1.0.0</span>
       </div>
       <p class="text-xs text-gray-500 mt-2 text-center">© 2025 88code.org</p>
     </div>
@@ -81,7 +81,9 @@
 </template>
 
 <script setup>
-import { Cloud, Code2, Sparkles } from 'lucide-vue-next';
+import { Sparkles } from 'lucide-vue-next';
+import ClaudeIcon from './icons/ClaudeIcon.vue';
+import CodexIcon from './icons/CodexIcon.vue';
 
 defineProps({
   activePanel: {
