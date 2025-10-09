@@ -1,4 +1,4 @@
-name: Cross-Platform Bun Build (三系统构建)
+name: Tauri Cross-Platform Build (三系统构建)
 on:
   # 1. 自动触发：当代码推送到 main 分支时运行
   push:
@@ -6,47 +6,69 @@ on:
   pull_request:
     branches: [ main ]
 
-  # 2. 手动触发：添加这一行，启用手动运行按钮
+  # 2. 手动触发：启用手动运行按钮
   workflow_dispatch:
-# 2. 定义任务 (Job)
+
 jobs:
   build:
-    # 使用矩阵策略，对列表中的所有 OS 进行构建
-    runs-on: ${{ matrix.os }}
-
     strategy:
-      # 定义构建矩阵，确保在三个系统上执行
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        bun-version: [latest]
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
 
+    runs-on: ${{ matrix.platform }}
     steps:
       - name: 📝 检出代码 (Checkout code)
         uses: actions/checkout@v4
 
-      - name: 🛠️ 设置 Bun (${{ matrix.bun-version }})
-        # 使用官方 Action 来安装 Bun
-        uses: oven-sh/setup-bun@v1
+      - name: 🛠️ 安装 Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: ${{ matrix.bun-version }}
+          node-version: 20
 
-      - name: 📦 安装依赖 (bun install)
-        # --frozen-lockfile 确保所有系统使用相同的锁定文件
-        run: bun install --frozen-lockfile
+      - name: 📦 安装 pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
 
-      - name: 🔨 执行构建 (bun run build)
-        # 这是构建产物（如 dist 文件夹）的关键步骤
-        run: bun run build
+      - name: 🦀 安装 Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: 💾 存档构建结果 (${{ matrix.os }})
+      - name: 🐧 安装 Linux 依赖
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: 📦 安装前端依赖
+        run: pnpm install
+
+      - name: 🔨 构建 Tauri 应用
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+
+      - name: 💾 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          # 产物名称会根据操作系统动态变化：
-          # build-artifacts-ubuntu-latest, build-artifacts-macos-latest, build-artifacts-windows-latest
-          name: build-artifacts-${{ matrix.os }}
-
-          # **重点：确保你的 bun run build 脚本将文件输出到这个目录**
-          path: dist
-
-          # 如果找不到 dist 目录，则强制工作流失败，以便你发现构建问题
-          if-no-files-found: error
+          name: tauri-app-${{ matrix.platform }}-${{ matrix.args != '' && matrix.args || 'default' }}
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.app
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+          if-no-files-found: warn
