@@ -36,6 +36,9 @@ impl Default for ClaudeSettings {
 pub fn configure_claude_code(base_url: String, api_key: String) -> Result<(), String> {
     let settings_path = get_claude_settings_path();
 
+    // 首次配置前创建备份
+    crate::config::create_backup_if_not_exists(&settings_path)?;
+
     // 读取现有配置JSON并提取未知字段（使用Vec保持顺序）
     let mut extra_env = Vec::new();
     let mut extra_root = Vec::new();
@@ -134,6 +137,9 @@ pub fn get_claude_config() -> Result<ClaudeSettings, String> {
 /// 高级配置 Claude Code（直接写入用户提供的完整配置内容）
 pub fn configure_claude_advanced(config_content: String) -> Result<(), String> {
     let settings_path = get_claude_settings_path();
+
+    // 首次配置前创建备份
+    crate::config::create_backup_if_not_exists(&settings_path)?;
 
     // 验证JSON格式
     let new_config: Value = serde_json::from_str(&config_content)

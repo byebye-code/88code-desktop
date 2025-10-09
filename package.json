@@ -1,7 +1,7 @@
 {
   "name": "88code-desktop",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "88code Claude Code & Codex 配置工具",
   "scripts": {

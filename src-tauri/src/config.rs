@@ -142,3 +142,33 @@ pub fn get_config_paths_info() -> ConfigPaths {
         codex_config: get_codex_config_path().to_string_lossy().to_string(),
     }
 }
+
+/// 创建备份文件(仅在.bak文件不存在时创建)
+/// 返回 Ok(true) 表示创建了备份, Ok(false) 表示备份已存在
+pub fn create_backup_if_not_exists(file_path: &Path) -> Result<bool, String> {
+    // 如果原文件不存在,无需备份
+    if !file_path.exists() {
+        return Ok(false);
+    }
+
+    // 生成备份文件路径
+    let backup_path = file_path.with_extension(
+        format!("{}.bak", file_path.extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+        ).trim_start_matches('.')
+    );
+
+    // 如果备份文件已存在,不再覆盖
+    if backup_path.exists() {
+        log::info!("备份文件已存在,跳过: {:?}", backup_path);
+        return Ok(false);
+    }
+
+    // 创建备份
+    fs::copy(file_path, &backup_path)
+        .map_err(|e| format!("创建备份文件失败: {}", e))?;
+
+    log::info!("首次备份成功: {:?} -> {:?}", file_path, backup_path);
+    Ok(true)
+}

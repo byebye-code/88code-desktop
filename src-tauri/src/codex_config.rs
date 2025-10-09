@@ -1,4 +1,4 @@
-use crate::config::{get_codex_auth_path, get_codex_config_path, write_json_file};
+use crate::config::{get_codex_auth_path, get_codex_config_path};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -40,6 +40,10 @@ pub struct CodexAuth {
 pub fn configure_codex(base_url: String, api_key: String) -> Result<(), String> {
     let auth_path = get_codex_auth_path();
     let config_path = get_codex_config_path();
+
+    // 首次配置前创建备份
+    crate::config::create_backup_if_not_exists(&auth_path)?;
+    crate::config::create_backup_if_not_exists(&config_path)?;
 
     // 读取现有 auth.json，提取所有字段（使用Vec保持顺序）
     let mut extra_fields = Vec::new();
@@ -215,6 +219,10 @@ pub fn configure_codex_advanced(
 ) -> Result<(), String> {
     let auth_path = get_codex_auth_path();
     let config_path = get_codex_config_path();
+
+    // 首次配置前创建备份
+    crate::config::create_backup_if_not_exists(&auth_path)?;
+    crate::config::create_backup_if_not_exists(&config_path)?;
 
     // 验证并解析 auth.json
     let new_auth_value: Value = serde_json::from_str(&auth_json)

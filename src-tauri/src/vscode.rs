@@ -226,6 +226,9 @@ pub fn configure_vscode_claude(api_key: String, _base_url: String) -> Result<Str
     let config_dir = get_claude_config_dir();
     let config_path = config_dir.join("config.json");
 
+    // 首次配置前创建备份
+    crate::config::create_backup_if_not_exists(&config_path)?;
+
     // 3. 创建配置内容
     let config_content = json!({
         "primaryApiKey": api_key
@@ -245,6 +248,8 @@ pub fn configure_vscode_claude(api_key: String, _base_url: String) -> Result<Str
 pub fn configure_vscode_codex(base_url: String, api_key: String) -> Result<String, String> {
     // 查找或创建 settings.json 路径
     let settings_path = if let Some(path) = find_existing_settings() {
+        // 首次配置前创建备份
+        crate::config::create_backup_if_not_exists(&path)?;
         path
     } else {
         // 如果找不到现有配置，使用第一个候选路径（通常是 Code Stable）
