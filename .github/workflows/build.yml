@@ -1,0 +1,51 @@
+name: Cross-Platform Bun Build (三系统构建)
+
+# 1. 触发条件：当代码推送到 main 分支，或发起针对 main 分支的 Pull Request 时运行
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# 2. 定义任务 (Job)
+jobs:
+  build:
+    # 使用矩阵策略，对列表中的所有 OS 进行构建
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # 定义构建矩阵，确保在三个系统上执行
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        bun-version: [latest]
+
+    steps:
+      - name: 📝 检出代码 (Checkout code)
+        uses: actions/checkout@v4
+
+      - name: 🛠️ 设置 Bun (${{ matrix.bun-version }})
+        # 使用官方 Action 来安装 Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: ${{ matrix.bun-version }}
+
+      - name: 📦 安装依赖 (bun install)
+        # --frozen-lockfile 确保所有系统使用相同的锁定文件
+        run: bun install --frozen-lockfile
+
+      - name: 🔨 执行构建 (bun run build)
+        # 这是构建产物（如 dist 文件夹）的关键步骤
+        run: bun run build
+
+      - name: 💾 存档构建结果 (${{ matrix.os }})
+        uses: actions/upload-artifact@v4
+        with:
+          # 产物名称会根据操作系统动态变化：
+          # build-artifacts-ubuntu-latest, build-artifacts-macos-latest, build-artifacts-windows-latest
+          name: build-artifacts-${{ matrix.os }}
+
+          # **重点：确保你的 bun run build 脚本将文件输出到这个目录**
+          path: dist
+
+          # 如果找不到 dist 目录，则强制工作流失败，以便你发现构建问题
+          if-no-files-found: error
