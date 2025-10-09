@@ -67,9 +67,9 @@ pnpm tauri dev
 pnpm tauri build
 ```
 ## 使用
-windows可在release中下载exe直接运行
+下载release中对应系统文件运行，如果失败，请自行build
 
-linux和mac可本地自行build
+
 
 ## 配置路径
 
