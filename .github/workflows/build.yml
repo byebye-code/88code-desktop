@@ -1,12 +1,14 @@
 name: Cross-Platform Bun Build (三系统构建)
 
-# 1. 触发条件：当代码推送到 main 分支，或发起针对 main 分支的 Pull Request 时运行
 on:
+  # 1. 自动触发：当代码推送到 main 分支时运行
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
+  # 2. 手动触发：添加这一行，启用手动运行按钮
+  workflow_dispatch:
 # 2. 定义任务 (Job)
 jobs:
   build:
