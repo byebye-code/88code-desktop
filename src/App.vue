@@ -16,6 +16,13 @@
       @error="handleError"
     />
 
+    <DroidConfigPanel
+      v-if="activePanel === 'droid'"
+      :configPaths="configPaths"
+      @success="handleSuccess"
+      @error="handleError"
+    />
+
     <Notification :notification="notification" @close="notification = null" />
   </div>
 </template>
@@ -26,6 +33,7 @@ import { invoke } from '@tauri-apps/api/core';
 import Sidebar from './components/Sidebar.vue';
 import ClaudeConfigPanel from './components/ClaudeConfigPanel.vue';
 import CodexConfigPanel from './components/CodexConfigPanel.vue';
+import DroidConfigPanel from './components/DroidConfigPanel.vue';
 import Notification from './components/Notification.vue';
 
 const activePanel = ref('claude');

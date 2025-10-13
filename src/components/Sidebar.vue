@@ -64,6 +64,30 @@
         </div>
         <div v-if="activePanel === 'codex'" class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full"></div>
       </button>
+
+      <button
+        @click="$emit('panel-change', 'droid')"
+        :class="[
+          'w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden',
+          activePanel === 'droid'
+            ? 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-lg shadow-teal-500/30 scale-[1.02]'
+            : 'text-gray-300 hover:bg-gray-800/60 hover:text-white hover:scale-[1.01]'
+        ]"
+      >
+        <div :class="[
+          'p-2 rounded-lg transition-all duration-300',
+          activePanel === 'droid'
+            ? 'bg-white/20'
+            : 'bg-gray-700/50 group-hover:bg-gray-700'
+        ]">
+          <DroidIcon :size="18" color="currentColor" />
+        </div>
+        <div class="flex-1 text-left">
+          <span class="font-semibold text-sm">Droid</span>
+          <p class="text-xs opacity-80 mt-0.5">AI 编程平台</p>
+        </div>
+        <div v-if="activePanel === 'droid'" class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full"></div>
+      </button>
     </nav>
 
     <!-- 底部信息 -->
@@ -84,6 +108,7 @@
 import { Sparkles } from 'lucide-vue-next';
 import ClaudeIcon from './icons/ClaudeIcon.vue';
 import CodexIcon from './icons/CodexIcon.vue';
+import DroidIcon from './icons/DroidIcon.vue';
 
 defineProps({
   activePanel: {

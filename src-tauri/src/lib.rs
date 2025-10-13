@@ -1,6 +1,7 @@
 // 88code-desktop modules
 mod claude_config;
 mod codex_config;
+mod droid_config;
 mod commands;
 mod config;
 mod env_manager;
@@ -19,9 +20,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::configure_claude_code,
             commands::configure_codex,
+            commands::configure_droid,
             commands::get_config_paths,
             commands::get_current_claude_config,
             commands::get_current_codex_auth,
+            commands::get_current_droid_config,
             commands::configure_vscode_claude,
             commands::configure_vscode_codex,
             commands::get_vscode_paths,
@@ -29,6 +32,8 @@ pub fn run() {
             commands::configure_codex_advanced,
             commands::delete_claude_config,
             commands::delete_codex_config,
+            commands::delete_droid_model,
+            commands::delete_droid_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -32,6 +32,18 @@ pub fn get_codex_config_path() -> PathBuf {
     get_codex_config_dir().join("config.toml")
 }
 
+/// 获取 Droid 配置目录路径
+pub fn get_droid_config_dir() -> PathBuf {
+    dirs::home_dir()
+        .expect("无法获取用户主目录")
+        .join(".factory")
+}
+
+/// 获取 Droid config.json 路径
+pub fn get_droid_config_path() -> PathBuf {
+    get_droid_config_dir().join("config.json")
+}
+
 /// 原子写入：写入临时文件后 rename 替换，避免半写状态
 pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     // 确保父目录存在
@@ -131,6 +143,8 @@ pub struct ConfigPaths {
     pub codex_dir: String,
     pub codex_auth: String,
     pub codex_config: String,
+    pub droid_dir: String,
+    pub droid_config: String,
 }
 
 pub fn get_config_paths_info() -> ConfigPaths {
@@ -140,6 +154,8 @@ pub fn get_config_paths_info() -> ConfigPaths {
         codex_dir: get_codex_config_dir().to_string_lossy().to_string(),
         codex_auth: get_codex_auth_path().to_string_lossy().to_string(),
         codex_config: get_codex_config_path().to_string_lossy().to_string(),
+        droid_dir: get_droid_config_dir().to_string_lossy().to_string(),
+        droid_config: get_droid_config_path().to_string_lossy().to_string(),
     }
 }
 

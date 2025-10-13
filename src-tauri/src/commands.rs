@@ -1,5 +1,6 @@
 use crate::claude_config;
 use crate::codex_config;
+use crate::droid_config;
 use crate::config;
 use crate::env_manager;
 use crate::vscode;
@@ -200,4 +201,68 @@ pub async fn delete_codex_config() -> Result<String, String> {
     }
 
     Ok(msg)
+}
+
+/// 配置 Droid（添加或更新自定义模型）
+#[tauri::command]
+pub async fn configure_droid(
+    model_display_name: String,
+    model: String,
+    base_url: String,
+    api_key: String,
+    provider: String,
+) -> Result<String, String> {
+    // 验证输入
+    if api_key.trim().is_empty() {
+        return Err("API 密钥不能为空".to_string());
+    }
+
+    if base_url.trim().is_empty() {
+        return Err("Base URL 不能为空".to_string());
+    }
+
+    if model_display_name.trim().is_empty() {
+        return Err("模型显示名称不能为空".to_string());
+    }
+
+    // 配置 Droid
+    droid_config::configure_droid(
+        model_display_name.trim().to_string(),
+        model.trim().to_string(),
+        base_url.trim().to_string(),
+        api_key.trim().to_string(),
+        provider.trim().to_string(),
+    )?;
+
+    Ok("Droid 配置成功！自定义模型已添加或更新。".to_string())
+}
+
+/// 读取当前 Droid 配置
+#[tauri::command]
+pub async fn get_current_droid_config() -> Result<Option<droid_config::DroidConfig>, String> {
+    match droid_config::get_droid_config() {
+        Ok(config) => Ok(Some(config)),
+        Err(_) => Ok(None),
+    }
+}
+
+/// 删除 Droid 自定义模型
+#[tauri::command]
+pub async fn delete_droid_model(model_display_name: String) -> Result<String, String> {
+    droid_config::delete_droid_model(model_display_name.clone())?;
+    Ok(format!("已删除自定义模型: {}", model_display_name))
+}
+
+/// 删除 Droid 配置文件
+#[tauri::command]
+pub async fn delete_droid_config() -> Result<String, String> {
+    let config_path = config::get_droid_config_path();
+
+    if config_path.exists() {
+        std::fs::remove_file(&config_path)
+            .map_err(|e| format!("删除配置文件失败: {}", e))?;
+        Ok(format!("已删除配置文件: {:?}", config_path))
+    } else {
+        Ok("配置文件不存在".to_string())
+    }
 }
