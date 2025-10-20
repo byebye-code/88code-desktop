@@ -97,7 +97,7 @@
           <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           <span>运行中</span>
         </div>
-        <span class="font-mono">v1.0.0</span>
+        <span class="font-mono">v1.1.0</span>
       </div>
       <p class="text-xs text-gray-500 mt-2 text-center">© 2025 88code.org</p>
     </div>
